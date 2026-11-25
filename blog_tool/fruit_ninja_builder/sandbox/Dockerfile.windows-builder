@@ -1,0 +1,22 @@
+# Builder desktop (RE variant): the runtime desktop plus an analysis toolbox. Absent at play time.
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+ENV DEBIAN_FRONTEND=noninteractive
+RUN apt-get update && apt-get install -y --no-install-recommends \
+       gdb strace ltrace binutils binutils-mingw-w64-i686 file xxd xz-utils inotify-tools sqlite3 python3-pip \
+  && rm -rf /var/lib/apt/lists/* \
+  && pip3 install --break-system-packages --no-cache-dir frida==17.4.0 frida-tools==14.4.5
+# Pinned static archives for native decompilation and binary analysis.
+RUN set -eu; cd /tmp \
+  && curl -fsSL -o kuna.tgz https://github.com/Noelo-Lab/kuna/releases/download/v1.992/kuna-v1.992-linux-x86_64-musl.tar.gz \
+  && echo "6e64667a179e8569aa14a1caabbfb613799ea57743eca6d5a46f123ffbf42412  kuna.tgz" | sha256sum -c - \
+  && mkdir -p /opt/kuna && tar xf kuna.tgz -C /opt/kuna && find /opt/kuna -type f -name kuna -exec ln -s {} /usr/local/bin/kuna \; \
+  && curl -fsSL -o rizin.tar.xz https://github.com/rizinorg/rizin/releases/download/v0.9.1/rizin-v0.9.1-static-x86_64.tar.xz \
+  && echo "9102249a9f0b6319c5334a2e5cf8d9cc3f2035e1d3def027c41f6a90f647e8cf  rizin.tar.xz" | sha256sum -c - \
+  && mkdir -p /opt/rizin && tar xf rizin.tar.xz -C /opt/rizin && find /opt/rizin -type f -name rizin -exec ln -s {} /usr/local/bin/rizin \; \
+  && rm -f kuna.tgz rizin.tar.xz \
+  && command -v kuna rizin frida > /dev/null && rizin -v > /dev/null && frida --version > /dev/null
+# memtool: generic, read-only memory inspection of the running game (finds the current process itself).
+COPY re-tools/ /opt/re-tools/
+RUN chmod 0755 /opt/re-tools/memtool && ln -s /opt/re-tools/memtool /usr/local/bin/memtool \
+  && memtool --help > /dev/null

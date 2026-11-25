@@ -1,0 +1,11 @@
+{
+  "id": "freecad-cable-slot",
+  "task_version": "0.6.0",
+  "source_context_sha256": "455b10542564331ad7a3fff0329f0647c28c6eed57534b3c4a8b5e19416455e5",
+  "tool_runtime_image": "reef-harbor-runtime:0.6.0",
+  "application": "freecad",
+  "inputFile": "mounting-plate.FCStd",
+  "mcpMode": "file",
+  "family": "freecad-board-plate",
+  "split": "development"
+}

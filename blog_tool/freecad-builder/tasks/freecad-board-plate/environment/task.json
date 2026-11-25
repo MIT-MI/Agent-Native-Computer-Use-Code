@@ -1,0 +1,11 @@
+{
+  "id": "freecad-board-plate",
+  "task_version": "0.6.0",
+  "source_context_sha256": "d92a347860e72d87c86fce6b2d2c8f2b2d8b9881785c164fa4c86f3d605786cc",
+  "tool_runtime_image": "reef-harbor-runtime:0.6.0",
+  "application": "freecad",
+  "inputFile": "mounting-plate.FCStd",
+  "mcpMode": "file",
+  "family": "freecad-board-plate",
+  "split": "development"
+}

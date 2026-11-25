@@ -1,0 +1,21 @@
+{
+  "parts": [
+    {
+      "name": "base",
+      "final": "Ported2",
+      "expected_volume_mm3": 54946.584013175394
+    },
+    {
+      "name": "lid",
+      "final": "LidFinal",
+      "expected_volume_mm3": 35344.546469980574
+    }
+  ],
+  "manifest": [
+    {
+      "name": "enclosure.FCStd",
+      "bytes": 17955,
+      "sha256": "70c65efe465aae0a315c2bd4c01116d32ce13f9a1fe1f5dc452ef580a686611f"
+    }
+  ]
+}

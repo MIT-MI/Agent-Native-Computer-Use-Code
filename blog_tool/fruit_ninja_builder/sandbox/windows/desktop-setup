@@ -1,0 +1,40 @@
+#!/bin/sh
+# Run once as root in a fresh desktop container: copy the game and Wine prefix for the game's user,
+# start the X display, then start the game. With "builder", also create /output for the agent.
+# AGENT is the user the Builder, reviewer and MCP run as: the game's user, or another user that
+# cannot read the game's files, prefix or memory and controls the game through fn-appd. With MEM=mem
+# (reverse engineering), fn-memd serves read-only reads of the game's memory whatever the host's
+# ptrace policy.
+set -eu
+ROLE=${1:-solve}
+AGENT=${2:-player}
+MEM=${3:-}
+eval "$(python3 -c '
+import json, shlex
+c = json.load(open("/opt/fn/app.json"))
+d = c["display"]
+num = d.lstrip(":").split(".")[0]
+for k, v in [("U", c["user"]), ("H", c["home"]), ("DISP", d), ("DNUM", num), ("SCR", c["screen"])]:
+    print(f"{k}={shlex.quote(v)}")
+')"
+mkdir -p "$H/fn" /tmp/fn-app
+cp -a /opt/fn-private/template/wine /opt/fn-private/template/game "$H/fn/"
+chown -R "$U:$U" "$H" /tmp/fn-app
+printf '%s\n' "$AGENT" > /run/fn-agent
+if [ "$ROLE" = builder ]; then
+  mkdir -p /output/mcp /output/intermediate
+  chown -R "$AGENT:$AGENT" /output
+fi
+if [ "$MEM" = mem ]; then
+  setsid python3 /opt/fn/fn-memd > /run/fn-memd.log 2>&1 < /dev/null &
+  for _ in $(seq 1 50); do [ -S /run/fn-mem.sock ] && break; sleep 0.1; done
+fi
+if [ "$AGENT" != "$U" ]; then
+  chmod 0700 "$H" /tmp/fn-app
+  setsid python3 /opt/fn/fn-appd > /run/fn-appd.log 2>&1 < /dev/null &
+  for _ in $(seq 1 50); do [ -S /run/fn-app.sock ] && break; sleep 0.1; done
+fi
+setpriv --reuid="$U" --regid="$U" --init-groups env HOME="$H" \
+  setsid Xvfb "$DISP" -screen 0 "$SCR" -nolisten tcp > /tmp/xvfb.log 2>&1 < /dev/null &
+for _ in $(seq 1 100); do [ -S "/tmp/.X11-unix/X$DNUM" ] && break; sleep 0.1; done
+exec setpriv --reuid="$U" --regid="$U" --init-groups env HOME="$H" /opt/fn/fn-app start

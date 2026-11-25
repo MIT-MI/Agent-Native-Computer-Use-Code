@@ -1,0 +1,13 @@
+{
+  "id": "freecad-enclosure-release",
+  "cohort": "showcase",
+  "admission_status": "draft",
+  "task_version": "0.11.1",
+  "source_context_sha256": "8ff9701d3b9536df702e655e6a0c06b0d4b31032a5ad135736ca737bea6b4f3d",
+  "tool_runtime_image": "reef-harbor-runtime:0.11.1-showcase",
+  "application": "freecad",
+  "inputFile": "enclosure.FCStd",
+  "mcpMode": "file",
+  "family": "showcase-freecad",
+  "split": "development"
+}

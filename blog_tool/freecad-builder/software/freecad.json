@@ -1,0 +1,102 @@
+{
+  "name": "FreeCAD",
+  "applications": [
+    {
+      "binary": "/usr/lib/freecad/bin/freecad-python3",
+      "desktop_file": "/usr/share/applications/org.freecadweb.FreeCAD.desktop",
+      "desktop_id": "org.cuaworld.FreeCAD",
+      "launch": [
+        "/usr/lib/freecad/bin/freecad-python3"
+      ],
+      "window_title": "FreeCAD 0.20",
+      "install_roots": [
+        "/usr/lib/freecad",
+        "/usr/share/freecad"
+      ],
+      "runtime_group": "cua-freecad",
+      "runtime_programs": [
+        "/usr/lib/x86_64-linux-gnu/qt5/libexec/QtWebEngineProcess"
+      ]
+    }
+  ],
+  "services": [],
+  "reference": {
+    "source": {
+      "version": "0.20.2+dfsg1-4+deb12u1",
+      "note": "Exact installed Debian source package from the security archive; archives are retained compressed. The .dsc names the upstream source and Debian packaging.",
+      "files": [
+        {
+          "url": "https://security.debian.org/debian-security/pool/updates/main/f/freecad/freecad_0.20.2+dfsg1-4+deb12u1.dsc",
+          "sha256": "5abcded4c97186cbcb72a96e6c266c12c9b9e3c25fa9f17008dfecd346a68220"
+        },
+        {
+          "url": "https://security.debian.org/debian-security/pool/updates/main/f/freecad/freecad_0.20.2+dfsg1.orig.tar.xz",
+          "sha256": "fde91f3ab109925743d0ef060d1f078a30ad9adcdc3b53a9a283a2f4f861a739"
+        },
+        {
+          "url": "https://security.debian.org/debian-security/pool/updates/main/f/freecad/freecad_0.20.2+dfsg1-4+deb12u1.debian.tar.xz",
+          "sha256": "c8e8d3f3fb60c280accf1485fa0ee0ecafd0a0983839a9982b1c960e258ec328"
+        }
+      ]
+    },
+    "documentation": [
+      "/usr/share/doc/freecad",
+      "/usr/share/doc/freecad-common",
+      "/usr/share/doc/freecad-python3",
+      "/usr/share/doc/libfreecad-python3-0.20",
+      "/usr/share/doc/freecad-doc"
+    ],
+    "documentation_note": "Installed package documentation only: changelogs, copyright and a third-party library list. Debian ships no FreeCAD manual."
+  },
+  "route_evidence": {
+    "internals": "FreeCADGui|InitGui|[\"'/]Mod/|\\.FCMacro",
+    "documents": "freecadcmd|FreeCADCmd|freecad[^ \"']* +(-c|--console)|Document\\.xml",
+    "note": "Added to the Builder's generic route patterns (harness/builder.py): this application's in-process scripting names, and its command-line build and document archive members, which edit documents without the running application."
+  },
+  "isolation_probes": {
+    "python_imports": {
+      "paths": [
+        "/usr/lib/freecad/lib",
+        "/usr/lib/freecad-python3/lib"
+      ],
+      "modules": [
+        "FreeCAD",
+        "FreeCADGui",
+        "Part"
+      ]
+    },
+    "commands": [
+      [
+        "freecadcmd",
+        "--version"
+      ],
+      [
+        "freecad",
+        "--version"
+      ],
+      [
+        "/usr/lib/freecad/bin/freecadcmd-python3",
+        "--version"
+      ]
+    ],
+    "typed_code": [
+      "import os",
+      "App.newDocument()",
+      "run(1)"
+    ],
+    "typed_values": [
+      "100 mm",
+      "Standoff1",
+      "/app/work/enclosure-base.step",
+      "12"
+    ],
+    "note": "isolation-check tries these as the no-re agent. Imports, commands and typed_code (entered key by key, by key codes and split across calls) must fail; typed_values must be typed. In run(1) only the shifted parenthesis makes the line code."
+  },
+  "environment": "environments/freecad/env.json",
+  "packages": {
+    "freecad-python3": "0.20.2+dfsg1-4+deb12u1",
+    "freecad-common": "0.20.2+dfsg1-4+deb12u1",
+    "libfreecad-python3-0.20": "0.20.2+dfsg1-4+deb12u1",
+    "freecad": "0.20.2+dfsg1-4+deb12u1"
+  }
+}

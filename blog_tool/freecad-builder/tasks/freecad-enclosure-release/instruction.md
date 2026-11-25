@@ -1,0 +1,12 @@
+Release revision B of the existing two-part enclosure.FCStd. Work in millimeters; every placement is the object's minimum corner (boxes) or base-circle center (cylinders). Revision A (100 x 60 x 25 base, 100 x 60 x 3 lid, radius-1.5 lid holes) is superseded.
+BASE. Set BaseStock to 140 x 90 x 35 at (0,0,0) and Cavity to 136 x 86 x 35 at (2,2,2), keeping the existing linked cut Shell=BaseStock-Cavity.
+Add four mounting posts, each with radius 3 and height 6: Post1 at (20,15,2), Post2 at (120,15,2), Post3 at (20,75,2), Post4 at (120,75,2). Fuse them sequentially as Mount1=Shell+Post1, Mount2=Mount1+Post2, Mount3=Mount2+Post3, Mount4=Mount3+Post4.
+Add two wall cutouts: UsbCut, a 6 x 14 x 8 box at (-2,38,12); EthCut, a 6 x 18 x 15 box at (136,36,10). Cut them sequentially as Ported1=Mount4-UsbCut and Ported2=Ported1-EthCut. Ported2 is the final base.
+LID. Set LidStock to 140 x 90 x 3 at (0,0,35). Set LidHole1..LidHole4 to radius 1.75, keeping height 7, at (7,7,33), (133,7,33), (7,83,33) and (133,83,33). Keep the existing linked cut chain LidCut1, LidCut2, LidCut3 and Lid with their original operands.
+Add six vent slots, each a 50 x 3 x 7 box: Vent1 at (45,30,33), Vent2 at (45,36,33), Vent3 at (45,42,33), Vent4 at (45,48,33), Vent5 at (45,54,33), Vent6 at (45,60,33). Cut them sequentially as Vented1=Lid-Vent1 through Vented6=Vented5-Vent6.
+Add LabelPlate, a 30 x 12 x 1 box at (100,10,38) rotated 15 degrees about Z, then fuse LidFinal=Vented6+LabelPlate. LidFinal is the final lid.
+PCBReference is a protected 80 x 45 x 1.6 reference at (10,7.5,8); do not change it.
+The new feature names refer to visible FreeCAD labels; GUI-generated internal IDs for new features are acceptable. Keep the existing internal object IDs unchanged. Do not replace the feature tree with an uneditable imported solid, and do not create duplicate final parts.
+Save the native project in place. Export only Ported2 to enclosure-base.step and enclosure-base.stl, and only LidFinal to enclosure-lid.step and enclosure-lid.stl, all in the same folder. Exclude PCBReference, cutters and intermediate features. Inspect both final parts before finishing.
+
+The working folder is /app/work. Use the assigned reef interface only. In CUA mode, observe screenshots and use ordinary mouse/keyboard input. In MCP mode, use application tools. Do not use shell commands, file APIs, scripts, developer consoles, DOM, accessibility trees, direct HTTP, or other agents to perform the task.

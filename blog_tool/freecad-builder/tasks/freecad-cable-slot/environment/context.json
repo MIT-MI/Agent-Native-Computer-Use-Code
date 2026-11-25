@@ -1,0 +1,11 @@
+{
+  "revision": "B",
+  "expected_volume_mm3": 29717.256661176918,
+  "manifest": [
+    {
+      "name": "mounting-plate.FCStd",
+      "bytes": 8171,
+      "sha256": "229846480494348f5f97c50730039ab8999711563d80ed6e9422db801b653817"
+    }
+  ]
+}

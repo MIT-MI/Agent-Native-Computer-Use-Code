@@ -1,0 +1,316 @@
+#!/usr/bin/env python3
+"""memtool: read-only inspection of the running game's memory, for reverse engineering.
+
+Every command finds the game's current process itself (process ids change across restarts) unless
+--pid is given. It never writes to the process. Addresses and values accept hex (0x...) or decimal.
+
+  memtool pid                       the game's process ids
+  memtool rtti [REGEX]              MSVC RTTI classes in the executable with their vtable addresses
+  memtool regions                   the process's writable mappings
+  memtool find VALUE [--type u32|i32|f32] [--tol T] [--max N]
+                                    4-byte-aligned addresses in writable memory holding VALUE
+  memtool dump ADDR [LEN]           every 4-byte word of a range as hex, u32, i32 and f32, unfiltered
+  memtool watch (ADDR ... | --vtable VT) [--len N] [--seconds S] [--hz H]
+                                    sample objects while the game runs; report the offsets that change,
+                                    their value ranges, and whether each changing f32 field moves at
+                                    constant velocity (linear) or constant acceleration (quadratic)
+"""
+import argparse
+import json
+import os
+import re
+import socket
+import struct
+import sys
+import time
+
+import numpy as np
+
+CONFIG = json.load(open(os.environ.get('FN_APP_CONFIG', '/opt/fn/app.json')))
+EXE = CONFIG['executable']
+
+
+def number(text):
+    text = str(text)
+    return int(text, 16) if text.lower().startswith('0x') else (float(text) if '.' in text else int(text))
+
+
+def game_pids():
+    found = []
+    for name in os.listdir('/proc'):
+        if name.isdigit():
+            try:
+                with open('/proc/%s/maps' % name) as maps:
+                    if EXE in maps.read():
+                        found.append(int(name))
+            except OSError:
+                pass
+    return sorted(found)
+
+
+def the_pid(args):
+    if args.pid:
+        return args.pid
+    pids = game_pids()
+    if not pids:
+        sys.exit('memtool: the game is not running (fn-app start)')
+    return pids[0]
+
+
+def writable(pid, limit=256 << 20):
+    regions = []
+    with open('/proc/%d/maps' % pid) as maps:
+        for line in maps:
+            fields = line.split()
+            start, end = (int(x, 16) for x in fields[0].split('-'))
+            if fields[1].startswith('rw') and end - start <= limit:
+                regions.append((start, end, fields[5] if len(fields) > 5 else ''))
+    return regions
+
+
+class Memory:
+    """Reads /proc/PID/mem directly, or through fn-memd when the host's ptrace policy refuses that."""
+
+    def __init__(self, pid):
+        self.fd = self.stream = None
+        try:
+            self.fd = os.open('/proc/%d/mem' % pid, os.O_RDONLY)
+        except PermissionError:
+            if not os.path.exists('/run/fn-mem.sock'):
+                raise
+            client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+            client.connect('/run/fn-mem.sock')
+            self.stream = client.makefile('rwb')
+
+    def read(self, address, size):
+        if self.fd is not None:
+            try:
+                return os.pread(self.fd, size, address)
+            except OSError:
+                return b''
+        self.stream.write(b'read %d %d\n' % (address, size))
+        self.stream.flush()
+        count, = struct.unpack('<I', self.stream.read(4))
+        return self.stream.read(count)
+
+
+def cmd_pid(args):
+    print(json.dumps({'pids': game_pids()}))
+
+
+def cmd_regions(args):
+    pid = the_pid(args)
+    for start, end, name in writable(pid):
+        print('0x%08x-0x%08x %8d KiB %s' % (start, end, (end - start) >> 10, name))
+
+
+def pe_sections(data):
+    pe = struct.unpack_from('<I', data, 0x3c)[0]
+    count = struct.unpack_from('<H', data, pe + 6)[0]
+    optional = struct.unpack_from('<H', data, pe + 20)[0]
+    base = struct.unpack_from('<I', data, pe + 24 + 28)[0]
+    sections = []
+    for i in range(count):
+        off = pe + 24 + optional + 40 * i
+        vsize, vaddr, rsize, raddr = struct.unpack_from('<IIII', data, off + 8)
+        sections.append((vaddr, max(vsize, rsize), raddr, rsize))
+    return base, sections
+
+
+def demangle(name):
+    body = name[4:-2] if name.endswith('@@') else name[4:]
+    if '?' in body:
+        return name
+    return '::'.join(reversed([part for part in body.split('@') if part]))
+
+
+def cmd_rtti(args):
+    data = open(os.path.join(CONFIG['game_dir'], EXE), 'rb').read()
+    base, sections = pe_sections(data)
+
+    def va(offset):
+        for vaddr, size, raddr, rsize in sections:
+            if raddr <= offset < raddr + rsize:
+                return base + vaddr + offset - raddr
+        return None
+
+    words = np.frombuffer(data[:len(data) // 4 * 4], dtype='<u4')
+    pattern = re.compile(args.regex) if args.regex else None
+    rows = []
+    for match in re.finditer(rb'\.\?A[VU][A-Za-z0-9_@?$]+@@', data):
+        name = match.group().decode()
+        if pattern and not pattern.search(name) and not pattern.search(demangle(name)):
+            continue
+        descriptor = va(match.start() - 8)
+        if descriptor is None:
+            continue
+        vtables = []
+        for index in np.nonzero(words == descriptor)[0]:
+            locator_offset = int(index) * 4 - 12
+            if locator_offset < 0 or struct.unpack_from('<I', data, locator_offset)[0] != 0:
+                continue
+            locator = va(locator_offset)
+            for ref in np.nonzero(words == locator)[0]:
+                vtable = va(int(ref) * 4 + 4)
+                if vtable is not None:
+                    vtables.append(vtable)
+        rows.append((demangle(name), name, sorted(set(vtables))))
+    for pretty, raw, vtables in sorted(rows):
+        print('%-48s %s  %s' % (pretty, ' '.join('0x%08x' % v for v in vtables) or '-', raw))
+    print('# %d classes; an object of a polymorphic class begins with its vtable address' % len(rows))
+
+
+def cmd_find(args):
+    pid = the_pid(args)
+    memory = Memory(pid)
+    value = number(args.value)
+    hits, total = [], 0
+    for start, end, _ in writable(pid):
+        data = memory.read(start, end - start)
+        if not data:
+            continue
+        if args.type == 'f32':
+            words = np.frombuffer(data[:len(data) // 4 * 4], dtype='<f4')
+            mask = np.abs(words - float(value)) <= args.tol
+        else:
+            words = np.frombuffer(data[:len(data) // 4 * 4], dtype='<u4' if args.type == 'u32' else '<i4')
+            mask = words == (int(value) & 0xffffffff if args.type == 'u32' else int(value))
+        found = np.nonzero(mask)[0]
+        total += len(found)
+        hits.extend(start + int(i) * 4 for i in found[: max(0, args.max - len(hits))])
+    for address in hits:
+        print('0x%08x' % address)
+    print('# %d matches%s' % (total, '' if total <= len(hits) else ', first %d shown' % len(hits)))
+
+
+def cmd_dump(args):
+    memory = Memory(the_pid(args))
+    address = number(args.address)
+    data = memory.read(address, args.length)
+    if not data:
+        sys.exit('memtool: cannot read 0x%08x' % address)
+    print('offset      hex           u32          i32  f32')
+    for off in range(0, len(data) // 4 * 4, 4):
+        raw = data[off:off + 4]
+        u32, = struct.unpack('<I', raw)
+        i32, = struct.unpack('<i', raw)
+        f32, = struct.unpack('<f', raw)
+        print('+0x%04x  0x%08x  %11d  %11d  %.6g' % (off, u32, u32, i32, f32))
+
+
+def longest_run(t, y):
+    """The longest stretch without a jump: a pooled object may be reused or reset mid-sample."""
+    jump = np.abs(np.diff(y)) > 0.25 * max(np.ptp(y), 1e-9)
+    bounds = [0] + [i + 1 for i in np.nonzero(jump)[0]] + [len(y)]
+    a, b = max(zip(bounds, bounds[1:]), key=lambda r: r[1] - r[0])
+    return t[a:b], y[a:b]
+
+
+def classify(t, y):
+    """Fit constant, linear and quadratic motion to one field's series; return the simplest that fits."""
+    t, y = longest_run(t, y)
+    # An object may wait (spawn delay) or stop before the sampling ends: fit only while it moves.
+    moving = np.nonzero(np.diff(y) != 0)[0]
+    if len(moving):
+        t, y = t[moving[0]:moving[-1] + 2], y[moving[0]:moving[-1] + 2]
+    if len(y) < 5:
+        return 'irregular', None
+    if np.ptp(y) == 0:
+        return 'constant', None
+    scale = max(np.ptp(y), 1e-6)
+    for degree, label in ((1, 'linear'), (2, 'quadratic')):
+        coefficients = np.polyfit(t, y, degree)
+        residual = np.sqrt(np.mean((np.polyval(coefficients, t) - y) ** 2)) / scale
+        if residual < 0.03:
+            rate = coefficients[-2] if degree == 1 else 2 * coefficients[0]
+            return label, float(rate)
+    return 'irregular', None
+
+
+def cmd_watch(args):
+    pid = the_pid(args)
+    memory = Memory(pid)
+    if args.vtable:
+        vtable = number(args.vtable)
+        objects = []
+        for start, end, _ in writable(pid):
+            data = memory.read(start, end - start)
+            words = np.frombuffer(data[:len(data) // 4 * 4], dtype='<u4')
+            objects.extend(start + int(i) * 4 for i in np.nonzero(words == vtable)[0])
+    else:
+        objects = [number(a) for a in args.address]
+    if not objects:
+        sys.exit('memtool: no objects to watch')
+    objects = objects[:args.max_objects]
+    length = args.length // 4 * 4
+    times, samples = [], []
+    began = time.monotonic()
+    while time.monotonic() - began < args.seconds:
+        times.append(time.monotonic() - began)
+        samples.append([memory.read(a, length).ljust(length, b'\0') for a in objects])
+        time.sleep(max(0.0, 1.0 / args.hz - 0.002))
+    t = np.array(times)
+    words = length // 4
+    floats = np.array([[np.frombuffer(s, dtype='<f4', count=words) for s in sample] for sample in samples])
+    ints = np.array([[np.frombuffer(s, dtype='<u4', count=words) for s in sample] for sample in samples])
+    changed_objects = [j for j in range(len(objects)) if (ints[:, j, :] != ints[0, j, :]).any()]
+    print('# %d objects, %d samples over %.1f s; %d objects changed'
+          % (len(objects), len(times), t[-1] if len(t) else 0, len(changed_objects)))
+    if not changed_objects:
+        print('# nothing changed: watch while the game is running, not paused or after a round has ended')
+        return
+    print('offset   changed  f32 range                     linear quadratic irregular  median rate (per second)')
+    for w in range(words):
+        movers = [j for j in changed_objects if (ints[:, j, w] != ints[0, j, w]).any()]
+        if not movers:
+            continue
+        values = floats[:, movers, w]
+        finite = values[np.isfinite(values) & (np.abs(values) < 1e30)]
+        kinds = {'linear': [], 'quadratic': [], 'irregular': [], 'constant': []}
+        for j in movers:
+            y = floats[:, j, w].astype(np.float64)
+            ok = np.isfinite(y) & (np.abs(y) < 1e7)
+            kind, rate = classify(t[ok], y[ok]) if ok.sum() >= 5 else ('irregular', None)
+            kinds[kind].append(rate)
+        span = '[%.4g, %.4g]' % (finite.min(), finite.max()) if finite.size else '[non-finite]'
+        main_kind = max(('linear', 'quadratic'), key=lambda k: len(kinds[k]))
+        rate = ('%.4g (%s)' % (np.median(kinds[main_kind]), 'velocity' if main_kind == 'linear' else 'acceleration')
+                if kinds[main_kind] else '-')
+        print('+0x%04x  %3d/%-3d  %-29s %6d %9d %9d  %s'
+              % (w * 4, len(movers), len(changed_objects), span, len(kinds['linear']), len(kinds['quadratic']),
+                 len(kinds['irregular']), rate))
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument('--pid', type=int)
+    sub = parser.add_subparsers(dest='command', required=True)
+    sub.add_parser('pid').set_defaults(run=cmd_pid)
+    sub.add_parser('regions').set_defaults(run=cmd_regions)
+    p = sub.add_parser('rtti')
+    p.add_argument('regex', nargs='?')
+    p.set_defaults(run=cmd_rtti)
+    p = sub.add_parser('find')
+    p.add_argument('value')
+    p.add_argument('--type', choices=('u32', 'i32', 'f32'), default='u32')
+    p.add_argument('--tol', type=float, default=0.0)
+    p.add_argument('--max', type=int, default=100)
+    p.set_defaults(run=cmd_find)
+    p = sub.add_parser('dump')
+    p.add_argument('address')
+    p.add_argument('length', nargs='?', type=lambda s: int(number(s)), default=256)
+    p.set_defaults(run=cmd_dump)
+    p = sub.add_parser('watch')
+    p.add_argument('address', nargs='*')
+    p.add_argument('--vtable')
+    p.add_argument('--len', dest='length', type=lambda s: int(number(s)), default=256)
+    p.add_argument('--seconds', type=float, default=2.0)
+    p.add_argument('--hz', type=float, default=20.0)
+    p.add_argument('--max-objects', type=int, default=200)
+    p.set_defaults(run=cmd_watch)
+    args = parser.parse_args()
+    args.run(args)
+
+
+if __name__ == '__main__':
+    main()

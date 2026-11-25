@@ -1,0 +1,13 @@
+{
+  "id": "freecad-lid-vent-pattern",
+  "cohort": "showcase",
+  "admission_status": "draft",
+  "task_version": "0.11.1",
+  "source_context_sha256": "78d063d369d2cae93c9110bade65221d508488e2a8f83fcdc830898eb020ece2",
+  "tool_runtime_image": "reef-harbor-runtime:0.11.1-showcase",
+  "application": "freecad",
+  "inputFile": "sensor-lid.FCStd",
+  "mcpMode": "file",
+  "family": "showcase-freecad",
+  "split": "development"
+}

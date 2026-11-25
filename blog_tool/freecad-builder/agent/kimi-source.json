@@ -1,0 +1,7 @@
+{
+  "repository": "https://github.com/cua-speedrun/cua-speedrun",
+  "commit": "be17c72c5efbb145d06f86028336fdf2743a3d98",
+  "path": "agents/kimi_k3/agent.py",
+  "sha256": "fd0cb9916fa4ba9dc4e5f7f0d85fdfc9ba2d1f58890193dca8c0eb86464b2722",
+  "adaptation": "Unmodified reference; retained loop and GUI bindings live in kimi_loop.py and kimi_gui.py."
+}

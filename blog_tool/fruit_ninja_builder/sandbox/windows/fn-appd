@@ -1,0 +1,38 @@
+#!/usr/bin/env python3
+"""Root helper for a desktop whose agent is not the game's user.
+
+Serves `fn-app start|stop|restart|status` on /run/fn-app.sock by running fn-app as the game's user, so
+the agent can control the game without access to its files, Wine prefix or memory.
+"""
+import json
+import os
+import socket
+import subprocess
+
+CONFIG = json.load(open('/opt/fn/app.json'))
+SOCKET = '/run/fn-app.sock'
+VERBS = {'start', 'stop', 'restart', 'status'}
+
+try:
+    os.unlink(SOCKET)
+except FileNotFoundError:
+    pass
+server = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+server.bind(SOCKET)
+os.chmod(SOCKET, 0o666)
+server.listen(8)
+env = {'HOME': CONFIG['home'], 'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8'}
+while True:
+    connection, _ = server.accept()
+    with connection:
+        verb = connection.recv(64).decode(errors='replace').strip()
+        if verb not in VERBS:
+            connection.sendall(json.dumps({'error': 'usage: fn-app start|stop|restart|status'}).encode())
+            continue
+        try:
+            result = subprocess.run(['setpriv', '--reuid', CONFIG['user'], '--regid', CONFIG['user'], '--init-groups',
+                                     '/opt/fn/fn-app', verb], env=env, capture_output=True, timeout=300)
+            reply = result.stdout.strip() or json.dumps({'error': result.stderr.decode(errors='replace')[-500:]}).encode()
+        except subprocess.TimeoutExpired:
+            reply = json.dumps({'error': 'fn-app timed out'}).encode()
+        connection.sendall(reply)

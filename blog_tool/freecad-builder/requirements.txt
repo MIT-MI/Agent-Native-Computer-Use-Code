@@ -1,0 +1,3 @@
+requests==2.34.2
+pillow==11.3.0
+cua-speedrun @ git+https://github.com/cua-speedrun/cua-speedrun.git@be17c72c5efbb145d06f86028336fdf2743a3d98

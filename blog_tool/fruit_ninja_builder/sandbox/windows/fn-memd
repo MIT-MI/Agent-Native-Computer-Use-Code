@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+"""Root helper for reverse-engineering desktops: read-only access to the running game's memory.
+
+The host's ptrace policy may refuse one process reading another's memory even for the same user. This
+helper serves the game process only, never writes, and runs only where the desktop is set up for
+reverse engineering. Protocol on /run/fn-mem.sock, one request per line, many per connection:
+
+  pid             -> one JSON line: {"pid": N} (the game's current process; it changes across restarts)
+  maps            -> one JSON line: {"pid": N, "maps": "<contents of /proc/N/maps>"}
+  read ADDR LEN   -> 4-byte little-endian count, then that many bytes (fewer, even 0, if unreadable)
+
+ADDR and LEN are decimal or 0x-prefixed hex; LEN is at most 64 MiB.
+"""
+import json
+import os
+import socketserver
+import struct
+import threading
+
+CONFIG = json.load(open('/opt/fn/app.json'))
+SOCKET = '/run/fn-mem.sock'
+LIMIT = 64 << 20
+state = {'pid': None, 'fd': None, 'started': None}
+lock = threading.Lock()
+
+
+def start_time(pid):
+    """The process's start time, read cheaply on every request to notice a restarted game."""
+    try:
+        with open('/proc/%d/stat' % pid) as stat:
+            return stat.read().rsplit(')', 1)[1].split()[19]
+    except (OSError, IndexError):
+        return None
+
+
+def is_game(pid):
+    try:
+        with open('/proc/%d/maps' % pid) as maps:
+            return CONFIG['executable'] in maps.read()
+    except OSError:
+        return False
+
+
+def game():
+    with lock:
+        return find_game()
+
+
+def find_game():
+    if state['pid'] and start_time(state['pid']) == state['started']:
+        return state['pid'], state['fd']
+    if state['fd'] is not None:
+        os.close(state['fd'])
+    state.update(pid=None, fd=None, started=None)
+    for name in sorted(os.listdir('/proc'), key=lambda n: (len(n), n)):
+        if name.isdigit() and is_game(int(name)):
+            pid = int(name)
+            state.update(pid=pid, fd=os.open('/proc/%d/mem' % pid, os.O_RDONLY), started=start_time(pid))
+            break
+    return state['pid'], state['fd']
+
+
+class Handler(socketserver.StreamRequestHandler):
+    def handle(self):
+        for line in self.rfile:
+            words = line.decode(errors='replace').split()
+            pid, fd = game()
+            if words == ['pid']:
+                self.wfile.write((json.dumps({'pid': pid}) + '\n').encode())
+            elif words == ['maps']:
+                try:
+                    maps = open('/proc/%d/maps' % pid).read() if pid else ''
+                except OSError:
+                    maps = ''
+                self.wfile.write((json.dumps({'pid': pid, 'maps': maps}) + '\n').encode())
+            elif len(words) == 3 and words[0] == 'read':
+                try:
+                    address, length = int(words[1], 0), min(int(words[2], 0), LIMIT)
+                    data = os.pread(fd, length, address) if fd is not None and length > 0 else b''
+                except (OSError, ValueError, OverflowError):
+                    data = b''
+                self.wfile.write(struct.pack('<I', len(data)) + data)
+            else:
+                self.wfile.write((json.dumps({'error': 'requests: pid | maps | read ADDR LEN'}) + '\n').encode())
+            self.wfile.flush()
+
+
+class Server(socketserver.ThreadingMixIn, socketserver.UnixStreamServer):
+    daemon_threads = True
+
+
+try:
+    os.unlink(SOCKET)
+except FileNotFoundError:
+    pass
+server = Server(SOCKET, Handler)
+os.chmod(SOCKET, 0o666)
+server.serve_forever()

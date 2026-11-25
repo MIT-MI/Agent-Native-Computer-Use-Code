@@ -1,0 +1,51 @@
+#!/usr/bin/env python3
+"""Run the deployed MCP (/opt/frozen-mcp/launch.sh) as the desktop's agent user over this process's stdio.
+
+`run-mcp stop` ends the MCP's whole session, including helpers it started.
+"""
+import json
+import os
+import signal
+import subprocess
+import sys
+import time
+
+PIDFILE = '/run/fn-mcp.pid'
+config = json.load(open('/opt/fn/app.json'))
+
+if sys.argv[1:] == ['stop']:
+    try:
+        session = int(open(PIDFILE).read())
+    except (OSError, ValueError):
+        sys.exit(0)
+    for signal_name in ('TERM', 'KILL'):
+        subprocess.run(['pkill', '-' + signal_name, '-s', str(session)])
+        time.sleep(1)
+    sys.exit(0)
+
+try:
+    user = open('/run/fn-agent').read().strip() or config['user']
+except OSError:
+    user = config['user']
+env = {'HOME': config['home'] if user == config['user'] else '/home/' + user, 'PATH': '/usr/local/bin:/usr/bin:/bin',
+       'LANG': 'C.UTF-8', 'DISPLAY': config['display'], 'XDG_RUNTIME_DIR': '/tmp', 'FN_APP_CONFIG': '/opt/fn/app.json'}
+if user == config['user']:
+    env['WINEPREFIX'] = config['prefix']
+env.update(config['environment'])
+child = subprocess.Popen(['setpriv', '--reuid', user, '--regid', user, '--init-groups',
+                          '--no-new-privs', '/opt/frozen-mcp/launch.sh'],
+                         cwd='/opt/frozen-mcp', env=env, start_new_session=True)
+with open(PIDFILE, 'w') as stream:
+    stream.write(str(child.pid))
+
+
+def forward(*_):
+    try:
+        os.killpg(child.pid, signal.SIGTERM)
+    except ProcessLookupError:
+        pass
+
+
+for name in (signal.SIGTERM, signal.SIGINT, signal.SIGHUP):
+    signal.signal(name, forward)
+sys.exit(child.wait())

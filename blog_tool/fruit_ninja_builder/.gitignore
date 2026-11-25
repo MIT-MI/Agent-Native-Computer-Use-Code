@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.local/
+artifacts/
+.env
+.env.*
+coverage/
+*.log
+__pycache__/
+showcase/node_modules/
+showcase/out/
+showcase/public/
+showcase/data.json
+showcase/build.json

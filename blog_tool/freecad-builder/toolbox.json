@@ -1,0 +1,81 @@
+{
+  "apt": [
+    "gdb",
+    "strace",
+    "ltrace",
+    "binutils",
+    "inotify-tools",
+    "sqlite3",
+    "dconf-cli",
+    "python3-pyatspi",
+    "python3-pil",
+    "python3-pip",
+    "curl",
+    "unzip",
+    "build-essential"
+  ],
+  "pip": [
+    "frida==17.4.0",
+    "frida-tools==14.4.5",
+    "mitmproxy==10.4.2",
+    "websocket-client==1.9.0"
+  ],
+  "archives": [
+    {
+      "name": "Kuna",
+      "url": "https://github.com/Noelo-Lab/kuna/releases/download/v1.992/kuna-v1.992-linux-x86_64-musl.tar.gz",
+      "sha256": "6e64667a179e8569aa14a1caabbfb613799ea57743eca6d5a46f123ffbf42412",
+      "install": "mkdir -p /opt/kuna && tar xf {archive} -C /opt/kuna && find /opt/kuna -type f -name kuna -exec ln -s {} /usr/local/bin/kuna \\;"
+    },
+    {
+      "name": "Temurin JDK 21",
+      "reason": "Ghidra 12 needs Java 21; Debian 12 packages Java 17.",
+      "url": "https://github.com/adoptium/temurin21-binaries/releases/download/jdk-21.0.13%2B9/OpenJDK21U-jdk_x64_linux_hotspot_21.0.13_9.tar.gz",
+      "sha256": "d7f5d5cf865a2902b70ff549b97586a7d3f234e016f041ab447ea740c7d66d1c",
+      "install": "mkdir -p /opt/jdk-21 && tar xf {archive} -C /opt/jdk-21 --strip-components=1 && ln -s /opt/jdk-21/bin/java /usr/local/bin/java && ln -s /opt/jdk-21/bin/javac /usr/local/bin/javac"
+    },
+    {
+      "name": "Ghidra",
+      "url": "https://github.com/NationalSecurityAgency/ghidra/releases/download/Ghidra_12.1.2_build/ghidra_12.1.2_PUBLIC_20260605.zip",
+      "sha256": "b62e81a0390618466c019c60d8c2f796ced2509c4c1aea4a37644a77272cf99d",
+      "install": "unzip -q {archive} -d /opt && ln -s /opt/ghidra_12.1.2_PUBLIC/support/analyzeHeadless /usr/local/bin/analyzeHeadless"
+    },
+    {
+      "name": "Rizin",
+      "url": "https://github.com/rizinorg/rizin/releases/download/v0.9.1/rizin-v0.9.1-static-x86_64.tar.xz",
+      "sha256": "9102249a9f0b6319c5334a2e5cf8d9cc3f2035e1d3def027c41f6a90f647e8cf",
+      "install": "mkdir -p /opt/rizin && tar xf {archive} -C /opt/rizin && find /opt/rizin -type f -name rizin -exec ln -s {} /usr/local/bin/rizin \\;"
+    }
+  ],
+  "offline_checks": {
+    "Kuna": "kuna --help",
+    "Ghidra": {
+      "command": "analyzeHeadless -help",
+      "expected_returncode": 1,
+      "reason": "Headless usage exits with status 1."
+    },
+    "Rizin": "rizin -v",
+    "binutils": "objdump --version",
+    "Frida": "frida --version",
+    "gdb": "gdb --version",
+    "strace": "strace --version",
+    "ltrace": "ltrace --version",
+    "AT-SPI": "atspi-tree",
+    "xdotool": "xdotool getmouselocation",
+    "xprop": "xprop -root",
+    "inotifywait": {
+      "command": "inotifywait --help",
+      "expected_returncode": 1,
+      "reason": "This version's help exits with status 1."
+    },
+    "sqlite3": "sqlite3 :memory: \"select sqlite_version();\"",
+    "gsettings": "gsettings list-schemas",
+    "dconf": "dconf dump /",
+    "D-Bus monitor": "dbus-monitor --help",
+    "D-Bus introspection": "gdbus introspect --session --dest org.freedesktop.DBus --object-path /org/freedesktop/DBus",
+    "curl": "curl --version",
+    "mitmproxy": "mitmdump --version",
+    "DevTools protocol client": "cdp --help",
+    "Java 21": "java -version"
+  }
+}

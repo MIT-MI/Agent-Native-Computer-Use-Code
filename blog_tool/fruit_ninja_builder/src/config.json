@@ -1,0 +1,28 @@
+{
+  "game_config": "config/game.json",
+  "builder_model_config": "config/kimi-k3.json",
+  "player_model_config": "config/kimi-k3.json",
+  "agent_max_tokens": 32000,
+  "output_limit": 30000,
+  "max_images": 3,
+  "context_window": 1048576,
+  "container_label": "fnb.project=fruit-ninja-builder",
+  "container_run_label": "fnb.run",
+  "container_prefix": "fnb",
+  "images": {
+    "runtime": "fruit-ninja-builder/runtime:v1",
+    "builder": "fruit-ninja-builder/builder:v1",
+    "no_re": "fruit-ninja-builder/no-re:v1"
+  },
+  "template": ".local/windows/template",
+  "budgets": {
+    "builder_seconds": 10800,
+    "review_seconds": 1800,
+    "solve_seconds": 300
+  },
+  "smoke_budgets": {
+    "builder_seconds": 900,
+    "review_seconds": 300,
+    "solve_seconds": 300
+  }
+}

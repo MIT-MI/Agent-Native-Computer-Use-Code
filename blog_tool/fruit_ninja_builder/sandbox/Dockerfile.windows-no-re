@@ -1,0 +1,15 @@
+# Desktop for the Builder without reverse engineering, and for its MCP at play time: the solve desktop
+# without binary-analysis tools or the Wine debugger. What remains is how the game is run, seen and
+# played: Wine for the game's own user, X input and capture, Python with Pillow and numpy, ffmpeg,
+# xdotool, Node and the MCP runtime. The agent also runs as another user (desktop-setup), so the game's
+# files, prefix and memory are closed to it.
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+RUN set -eu; \
+  for tool in objdump readelf strings nm addr2line size objcopy c++filt elfedit gprof; do \
+    find / -xdev -path '*/bin/*' \( -name "$tool" -o -name "*-$tool" \) \( -type f -o -type l \) -print -delete; \
+  done; \
+  find / -xdev -name 'winedbg*' \( -type f -o -type l \) -print -delete; \
+  for tool in objdump readelf strings nm winedbg gdb strace ltrace frida kuna rizin xxd; do \
+    if command -v "$tool" > /dev/null || ls /usr/bin/*-"$tool" > /dev/null 2>&1; then echo "still present: $tool"; exit 1; fi; \
+  done

@@ -1,0 +1,121 @@
+{
+  "model": {
+    "endpoint": "https://compoundingloop--ep-kimi-k3-server.us-west.modal.direct/v1",
+    "model": "moonshotai/Kimi-K3",
+    "temperature": 1.0,
+    "top_p": 1.0,
+    "reasoning_effort": "max",
+    "max_tokens": 16384
+  },
+  "budgets": {
+    "builder_seconds": 10800,
+    "solve_seconds": 21600,
+    "solve_turns": 1000000,
+    "review_seconds": 1800,
+    "solve_note": "Each FreeCAD task keeps its own deadline (20, 20, 20, 40 and 90 minutes) in both modes, as in the earlier FreeCAD runs, which had no step limit. solve_turns only satisfies the upstream GUI agent, which needs a number; it is not reached within those deadlines."
+  },
+  "agent_model": {
+    "max_tokens": 32000,
+    "reason": "Owner-approved Claude Code default output limit for our agents (Builder, reviewer, MCP solver), also their compaction reserve. Not the endpoint maximum: a runaway generation could burn the whole budget. The upstream GUI agent keeps model.max_tokens."
+  },
+  "technical_limits": {
+    "tool_output_characters": {
+      "value": 30000,
+      "reason": "Owner-approved Claude Code tool/MCP output convention: keep the head and tail in context, with the complete output and range-readable path on disk."
+    }
+  },
+  "ocr": {
+    "packages": [
+      "tesseract-ocr",
+      "tesseract-ocr-eng",
+      "python3-tesserocr"
+    ],
+    "reason": "cli.py start --ocr: the same offline OCR for the Builder and the MCP of both variants, at build and at solve time. Tesseract with English data and tesserocr, the Python binding Debian 12 packages (it has no pytesseract), from the desktop's own Debian archive, added once to copies of the software and toolbox images. Off by default; the GUI arm never uses these images."
+  },
+  "early_finish": {
+    "budget_fraction": 0.15,
+    "reason": "Owner-requested: the first finish with more than this share of the Builder budget left only asks for confirmation, so time is spent improving the MCP. Both variants."
+  },
+  "isolation": {
+    "user": "agent",
+    "uid": 10002,
+    "root": "/srv/agent",
+    "closed_paths": [
+      "/app/work"
+    ],
+    "analysis_tools": [
+      "objdump", "readelf", "strings", "nm", "addr2line", "size", "objcopy", "c++filt", "elfedit", "gprof", "dwp",
+      "gdb", "gdbserver", "gcore", "lldb", "strace", "ltrace", "perf", "valgrind",
+      "xxd", "hexdump", "hd", "od",
+      "rizin", "radare2", "r2", "kuna", "analyzeHeadless", "frida", "frida-trace", "apptool"
+    ],
+    "reason": "The no-re condition: the Builder, its reviewer and its MCP run as this user, which cannot read the application's package files, install roots, home, logs or the tasks' work folder (closed_paths), nor its process. root holds the only folders the user writes; they are closed to the application's user. analysis_tools are removed from those desktops, and setup fails if one remains."
+  },
+  "smoke_budgets": {
+    "builder_seconds": 1800,
+    "review_seconds": 600,
+    "solve_seconds": 900,
+    "solve_turns": 50
+  },
+  "platform": {
+    "base_image": "debian:12@sha256:268fb24c39bca92d326dd83ea3abebe4a3f7751c804ffef23bb6d857dd343ff8",
+    "base_reason": "FreeCAD 0.20.2+dfsg1-4+deb12u1 is the Debian 12 build used by the FreeCAD tasks and their GUI runs; Ubuntu 22.04 ships another FreeCAD.",
+    "desktop_packages": [
+      "gnome-core",
+      "systemd",
+      "systemd-sysv",
+      "dbus-x11",
+      "tigervnc-standalone-server",
+      "tigervnc-tools",
+      "python3",
+      "python3-gi",
+      "gir1.2-glib-2.0",
+      "bubblewrap",
+      "scrot",
+      "wmctrl",
+      "xdotool",
+      "imagemagick",
+      "x11-utils",
+      "x11-xserver-utils",
+      "procps",
+      "at-spi2-core",
+      "dconf-cli"
+    ],
+    "apt_retries": {
+      "value": 5,
+      "reason": "apt Acquire::Retries with apt's own backoff while provisioning images online. Build recovery, not an agent limit."
+    }
+  },
+  "tasks": {
+    "paths": [
+      "tasks/freecad-board-plate",
+      "tasks/freecad-cable-slot",
+      "tasks/freecad-service-standoffs",
+      "tasks/freecad-lid-vent-pattern",
+      "tasks/freecad-enclosure-release"
+    ],
+    "judge_image": "sha256:69d53e34c1d3abbaacbafded76a8668a7bf7a48f9995ccf1dcfb840cc4ae5be8",
+    "reason": "Judge v3 bundles and the task runtime image that graded every earlier FreeCAD run."
+  },
+  "models": {
+    "deepseek-v4.1-flash": {
+      "endpoint": "https://compoundingloop--ep-deepseek-v4-1-flash-server.us-west.modal.direct/v1",
+      "model": "deepseek-ai/DeepSeek-V4.1-Flash",
+      "temperature": 1.0,
+      "top_p": 0.95,
+      "reasoning_effort": "high",
+      "max_tokens": 16384
+    }
+  },
+  "models_note": "cli.py --model picks one of these instead of \"model\". DeepSeek V4.1 Flash uses its model card settings, temperature 1.0 and top_p 0.95; at 0.3/0.9 it repeated itself until the output limit.",
+  "keys": {
+    "moonshotai/Kimi-K3": {
+      "file": "~/.config/cua-world/kimi.key",
+      "env": "KIMI_API_KEY"
+    },
+    "deepseek-ai/DeepSeek-V4.1-Flash": {
+      "file": "~/.config/cua-world/deepseek.key",
+      "env": "DEEPSEEK_API_KEY"
+    }
+  }
+}

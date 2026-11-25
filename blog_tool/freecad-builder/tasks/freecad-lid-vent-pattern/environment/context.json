@@ -1,0 +1,16 @@
+{
+  "parts": [
+    {
+      "name": "lid",
+      "final": "Vented5",
+      "expected_volume_mm3": 26884.546469980574
+    }
+  ],
+  "manifest": [
+    {
+      "name": "sensor-lid.FCStd",
+      "bytes": 13561,
+      "sha256": "5b55610f9ba18643133802ba4430f99644af231e4cf6e09a8576becd0a9f808d"
+    }
+  ]
+}

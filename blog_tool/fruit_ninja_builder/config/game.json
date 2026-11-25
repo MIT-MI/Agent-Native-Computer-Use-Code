@@ -1,0 +1,35 @@
+{
+  "title": "Fruit Ninja HD (Windows)",
+  "application": "Fruit Ninja HD (Windows, under Wine)",
+  "version_label": "Fruit Ninja HD 1.6.1 (Windows)",
+  "executable": "FruitNinja.exe",
+  "window_title": "^Fruit Ninja$",
+  "display": ":7",
+  "screen": "1024x768x24",
+  "game_user": "player",
+  "wine_prefix": "/home/player/fn/wine",
+  "viewport": {
+    "width": 1024,
+    "height": 768
+  },
+  "arcade_seconds": 60,
+  "target": {
+    "url": "https://archive.org/download/fruit-ninja-hd-portable/Fruit_Ninja_HD.7z",
+    "archive_name": "Fruit_Ninja_HD.7z",
+    "archive_sha1": "93dc48bf91ff9aacdb39289dad3b863b93e06cbd",
+    "installer_relpath": "FruitNinjaHD161.exe",
+    "cabinet_offset": "0xA8400",
+    "cabinet_size": 83862470,
+    "game_sha256": "1c40a38a42bd21ce7cc7e769a056c4338c44df9ef257c8efebd01144a4ebce3d",
+    "source_kind": "third-party historical archive; publisher authenticity unverified"
+  },
+  "dxvk": {
+    "tag": "v2.4",
+    "base_commit": "008afc1c5f287e82a553108790da6e10b1159200",
+    "repo": "https://github.com/doitsujin/dxvk.git",
+    "upstream_fix": "https://github.com/doitsujin/dxvk/pull/5765",
+    "glslang_deb_url": "https://deb.debian.org/debian/pool/main/g/glslang/glslang-tools_12.0.0-2_amd64.deb",
+    "glslang_deb_name": "glslang-tools_12.0.0-2_amd64.deb",
+    "glslang_deb_sha256": "28e8cd493ccc83a7e803c637b5d96536400583730f3a70e7cc1431fa1585f819"
+  }
+}

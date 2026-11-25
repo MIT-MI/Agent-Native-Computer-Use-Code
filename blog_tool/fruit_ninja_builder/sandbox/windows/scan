@@ -1,0 +1,30 @@
+#!/usr/bin/env python3
+"""List files under the agent's home and /tmp with size and modification time (JSON)."""
+import json
+import os
+
+try:
+    CONFIG = json.load(open('/opt/fn/app.json'))
+    DISP_NUM = CONFIG['display'].lstrip(':').split('.')[0]
+    DEFAULT_USER = CONFIG['user']
+except OSError:
+    DISP_NUM = '7'
+    DEFAULT_USER = 'player'
+
+try:
+    AGENT = open('/run/fn-agent').read().strip() or DEFAULT_USER
+except OSError:
+    AGENT = DEFAULT_USER
+SKIP = ('/tmp/.X11-unix', f'/tmp/.X{DISP_NUM}-lock', '/tmp/fn-exec', '/tmp/fn-app', '/tmp/.wine-')
+state = {}
+for top in ('/home/' + AGENT, '/tmp'):
+    for root, dirs, files in os.walk(top):
+        dirs[:] = [d for d in dirs if not os.path.join(root, d).startswith(SKIP)]
+        for name in files:
+            path = os.path.join(root, name)
+            try:
+                info = os.lstat(path)
+            except OSError:
+                continue
+            state[path] = '%d:%d' % (info.st_size, info.st_mtime_ns)
+print(json.dumps(state))

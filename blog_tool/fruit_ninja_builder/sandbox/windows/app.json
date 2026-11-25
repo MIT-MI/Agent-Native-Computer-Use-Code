@@ -1,0 +1,18 @@
+{
+  "display": ":7",
+  "screen": "1024x768x24",
+  "user": "player",
+  "home": "/home/player",
+  "prefix": "/home/player/fn/wine",
+  "game_dir": "/home/player/fn/game",
+  "executable": "FruitNinja.exe",
+  "window_title": "^Fruit Ninja$",
+  "environment": {
+    "WINEARCH": "win32",
+    "WINEDEBUG": "-all",
+    "WINEDLLOVERRIDES": "d3d9=n",
+    "DXVK_FRAME_RATE": "30",
+    "DXVK_CONFIG": "d3d9.presentInterval = 0; dxvk.numCompilerThreads = 2",
+    "LP_NUM_THREADS": "4"
+  }
+}

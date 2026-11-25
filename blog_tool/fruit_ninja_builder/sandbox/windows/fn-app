@@ -1,0 +1,117 @@
+#!/usr/bin/env python3
+"""Start, stop, restart or report the game under Wine. Prints one JSON object."""
+import json
+import os
+import pwd
+import signal
+import socket
+import subprocess
+import sys
+import time
+
+CONFIG = json.load(open(os.environ.get('FN_APP_CONFIG', '/opt/fn/app.json')))
+LOGS = '/tmp/fn-app'
+
+
+def environment():
+    env = {'HOME': CONFIG['home'], 'PATH': '/usr/local/bin:/usr/bin:/bin', 'LANG': 'C.UTF-8',
+           'DISPLAY': CONFIG['display'], 'WINEPREFIX': CONFIG['prefix'], 'XDG_RUNTIME_DIR': '/tmp',
+           'DXVK_LOG_PATH': LOGS}
+    env.update(CONFIG['environment'])
+    return env
+
+
+def pids():
+    """Processes that map the game executable (not tools that merely mention it)."""
+    found = []
+    for name in os.listdir('/proc'):
+        if not name.isdigit():
+            continue
+        try:
+            with open('/proc/' + name + '/maps') as maps:
+                if CONFIG['executable'] in maps.read():
+                    found.append(int(name))
+        except OSError:
+            continue
+    return sorted(found)
+
+
+def window():
+    result = subprocess.run(['xdotool', 'search', '--onlyvisible', '--name', CONFIG['window_title']],
+                            env=environment(), capture_output=True, text=True)
+    ids = result.stdout.split()
+    return ids[0] if ids else None
+
+
+def status():
+    running = pids()
+    return {'running': bool(running), 'pids': running, 'window': window() if running else None,
+            'display': CONFIG['display'], 'prefix': CONFIG['prefix'], 'game_dir': CONFIG['game_dir'],
+            'log': LOGS + '/game.log'}
+
+
+def start(timeout=90):
+    if pids():
+        return {**status(), 'started': False, 'note': 'already running'}
+    os.makedirs(LOGS, exist_ok=True)
+    with open(LOGS + '/game.log', 'ab') as log:
+        subprocess.Popen(['wine', CONFIG['executable']], cwd=CONFIG['game_dir'], env=environment(),
+                         stdin=subprocess.DEVNULL, stdout=log, stderr=log, start_new_session=True)
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        found = window()
+        if found:
+            # Xvfb has no window manager: give the game the X11 input focus explicitly.
+            subprocess.run(['xdotool', 'windowfocus', '--sync', found], env=environment(),
+                           capture_output=True, timeout=10)
+            return {**status(), 'started': True}
+        time.sleep(0.5)
+    return {**status(), 'started': False, 'error': 'no game window within %d s' % timeout}
+
+
+def stop():
+    subprocess.run(['wineserver', '-k'], env=environment(), capture_output=True, timeout=20)
+    deadline = time.time() + 10
+    while pids() and time.time() < deadline:
+        time.sleep(0.2)
+    for pid in pids():
+        try:
+            os.kill(pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    subprocess.run(['wineserver', '-w'], env=environment(), capture_output=True, timeout=20)
+    return status()
+
+
+def via_helper(verb):
+    """An agent that is not the game's user asks the root helper (fn-appd) to act for it."""
+    client = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
+    client.connect('/run/fn-app.sock')
+    client.sendall(verb.encode())
+    client.shutdown(socket.SHUT_WR)
+    reply = b''.join(iter(lambda: client.recv(65536), b''))
+    print(reply.decode(errors='replace'))
+    try:
+        return 1 if 'error' in json.loads(reply) else 0
+    except ValueError:
+        return 1
+
+
+if __name__ == '__main__':
+    command = sys.argv[1] if len(sys.argv) > 1 else 'status'
+    if os.geteuid() not in (0, pwd.getpwnam(CONFIG['user']).pw_uid) and os.path.exists('/run/fn-app.sock'):
+        sys.exit(via_helper(command))
+    if command == 'start':
+        result = start()
+    elif command == 'stop':
+        result = stop()
+    elif command == 'restart':
+        stop()
+        result = start()
+    elif command == 'status':
+        result = status()
+    else:
+        print('usage: fn-app start|stop|restart|status', file=sys.stderr)
+        sys.exit(2)
+    print(json.dumps(result))
+    sys.exit(1 if 'error' in result else 0)

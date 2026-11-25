@@ -1,0 +1,11 @@
+{
+  "id": "freecad-service-standoffs",
+  "task_version": "0.6.0",
+  "source_context_sha256": "03f7ca6620af754ace2db75fa5cc904abe8a1c7e13bb9dc995417a8bd0182a42",
+  "tool_runtime_image": "reef-harbor-runtime:0.6.0",
+  "application": "freecad",
+  "inputFile": "mounting-plate.FCStd",
+  "mcpMode": "file",
+  "family": "freecad-board-plate",
+  "split": "held-out"
+}
